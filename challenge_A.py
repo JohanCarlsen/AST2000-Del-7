@@ -36,7 +36,7 @@ mission.verify_manual_orientation(pos, vel, angle)
 travel = mission.begin_interplanetary_travel()
 
 # Shortcut to make the landing sequence class start with a stable orbit
-shortcut.place_spacecraft_in_stable_orbit(2, 100e3, 0, 6)
+shortcut.place_spacecraft_in_stable_orbit(2, 0, 0, 6)
 
 # Initializing landing sequence class instance
 landing = mission.begin_landing_sequence()
@@ -62,7 +62,7 @@ EGEN KODE
 #
 # landing.fall_until_time(fall_time)
 
-t, pos, vel = landing.orient()
+initial_time, pos, vel = landing.orient()
 
 A = mission.lander_area     # cross section area of the lander in m^2
 R = system.radii[6] * 1000 # m
@@ -71,60 +71,71 @@ G = const.G # gravitational constant
 g = G * m_planet / R**2 # gravitational acceleration on our planet 3.174917721996738 m/s^2
 m_lander = mission.lander_mass # kg
 m_craft = mission.spacecraft_mass # kg
+T = system.rotational_periods[6] * 3600 * 24
 
-def air_resistance(position, velocity, C_d=1):
+def F_drag(position, velocity, C_d=1):
 
-    vr, v_theta = velocity
     r, r_theta = position
-
-    T = system.rotational_periods[6]
+    vr, v_theta = velocity
     omega = 2 * np.pi / T
 
-    v_drag = np.array([-vr, (omega * r) - v_theta])
+    v = np.array([vr, v_theta])
+    w = np.array([0, omega * r])
+    v_drag = v + w
 
-    F_drag = 0.5 * get_rho(r - R) * C_d * A * v_drag**2
+    F_d = - 1/2 * get_rho(r - R) * C_d * A * v_drag * np.linalg.norm(v_drag)
 
-    return F_drag
+    return F_d
 
+def trajectory_lander(initial_time, initial_velocity, initial_position, simulation_time):
 
-def trajectory_landing(initial_time, initial_position, initial_velocity, simulation_time):
+    dt = 0.001
+    time_steps = int(np.ceil(simulation_time / dt))
+
     x, y, z = initial_position
     vx, vy, vz = initial_velocity
 
     r = np.sqrt(x**2 + y**2)
-    theta = np.arctan(y / x)
+    r_theta = np.arctan(y / x)
+    print(r)
 
-    v = np.sqrt(vx**2 + vy**2)
-    vr = (x*vx + y*vy) / np.sqrt(x**2 + y**2)
-    v_theta = np.sqrt(v**2 - vr**2)
+    vr = x * vx + y * vy / np.sqrt(x**2 + y**2)
+    v_theta = r * (x * vy - vx * y / (x**2 + y**2))
 
-    dt = 0.001 # s
-    time_steps = int(np.ceil(simulation_time / dt))
+    position = np.zeros((2, time_steps))
+    velocity = np.zeros((2, time_steps))
     t = np.zeros(time_steps)
 
-    x = np.zeros((2, time_steps))
-    v = np.zeros((2, time_steps))
+    position[:,0] = np.array([r, r_theta])
+    velocity[:,0] = np.array([vr, v_theta])
 
-    x[:,0] = np.array([r, theta])
-    v[:,0] = np.array([vr, v_theta])
-
-    F_G = - m_craft * g * np.array([1, 0])
+    F_G = np.array([-m_craft * g, 0])
 
     for i in range(time_steps-1):
 
-        F_drag = air_resistance(x[:,i], v[:,i])
-        print(np.linalg.norm(F_drag))
-        F_tot = F_G + F_drag
-        a = F_tot / m_lander
+        F_d = F_drag(position[:,i], velocity[:,i])
+        F_tot = F_G + F_d
 
-        v[:,i+1] = v[:,i] + a * dt
-        x[:,i+1] = x[:,i] + v[:,i+1] * dt
+        a = F_tot / m_craft
+
+        velocity[:,i+1] = velocity[:,i] + a * dt
+        position[:,i+1] = position[:,i] + velocity[:,i+1] * dt
         t[i+1] = t[i] + dt
-    plt.plot(t, F_drag)
 
-    return t, x, v
+    # rx = position[0,:] * np.cos(position[1,:])
+    # ry = position[0,:] * np.sin(position[1,:])
+    # r_cart = np.array([rx, ry])
+    #
+    # vx = velocity[0,:] * np.cos(position[1,:]) - position[0,:]**2 * velocity[1,:] * np.sin(position[1,:])
+    # vy = velocity[0,:] * np.sin(position[1,:]) + position[0,:]**2 * velocity[1,:] * np.cos(position[1,:])
+    # v_cart = np.array([vx, vy])
+
+    return t, position, velocity #t, r_cart, v_cart
+
+t, r, v = trajectory_lander(initial_time, vel, pos, 300)
 
 
-t, r, v = trajectory_landing(t, pos, vel, 600)
-plt.plot(r[0,:], r[1,:])
-plt.show()
+# fig = plt.figure()
+# ax = fig.add_subplot(projection='polar')
+# ax.plot(r[0,:].T, r[1,:].T)
+# plt.show()
