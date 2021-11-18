@@ -39,14 +39,14 @@ m_co2 = 12*mh + 2 * 16*mh
 m_ch4 = 12*mh + 4*mh
 m_co = 12*mh + 16*mh
 m_n2o = 2 * 14*mh + 16*mh
-print('\n')
-print(f'm_o2: {m_o2}')
-print(f'm_h2o: {m_h2o}')
-print(f'm_co2: {m_co2}')
-print(f'm_ch4: {m_ch4}')
-print(f'm_co: {m_co}')
-print(f'm_n2o: {m_n2o}')
-print('\n')
+# print('\n')
+# print(f'm_o2: {m_o2}')
+# print(f'm_h2o: {m_h2o}')
+# print(f'm_co2: {m_co2}')
+# print(f'm_ch4: {m_ch4}')
+# print(f'm_co: {m_co}')
+# print(f'm_n2o: {m_n2o}')
+# print('\n')
 
 mass_array = np.array([m_o2, m_h2o, m_co2, m_ch4, m_co, m_n2o])
 def optimize_mu(mass_array, option='minimize'):
@@ -60,9 +60,9 @@ def optimize_mu(mass_array, option='minimize'):
     mu_comb = np.zeros((N))
     for i in trange(len(mu_comb), desc='Calculating mu'):
         mu_comb[i] = np.sum(combinations_mass[i]) / (M*mh)
-    print('')
+    # print('')
     where_min = np.where(mu_comb == opt(mu_comb))
-    print(f'Total combinations: {len(mu_comb)}')
+    # print(f'Total combinations: {len(mu_comb)}')
     # print(where_min)
     # print(mu_comb[where_min])
     # print(combinations_mass[where_min])
@@ -70,8 +70,8 @@ def optimize_mu(mass_array, option='minimize'):
 mass_comb, min_mu = optimize_mu(mass_array, 'minimize')
 
 n = 0
-print(f'Amount of combinations to choose: {len(min_mu)}\n')
-print(mass_comb[n])         # Kombinasjon av masse
+# print(f'Amount of combinations to choose: {len(min_mu)}\n')
+# print(mass_comb[n])         # Kombinasjon av masse
 mu = min_mu[n]            # Komposisjon av atmosfære
 r_dist = 3.64 * const.AU            # Middel-avstand
 g = planet_mass * const.G / (planet_radius)**2  # antatt er konstant (husk å bytte til g for planeten vi befinner oss på)
