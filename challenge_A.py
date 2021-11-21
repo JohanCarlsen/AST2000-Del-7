@@ -163,6 +163,9 @@ def trajectory_lander(initial_time, initial_velocity, initial_position, simulati
         velocity[:,i+1] = velocity[:,i] + a * dt
         position[:,i+1] = position[:,i] + velocity[:,i+1] * dt
 
+        if np.logical_and(abs(position[0,i]) < 2, abs(position[0,i]) > 0) == True:
+            print('90 degrees reached, position:', position[:,i])
+
         if np.linalg.norm(position[:,i+1]) <= R:
             print('Ground hit after', t[i+1], 's. Good luck.')
             return t[:i], position[:,:i], velocity[:,:i], F_gravity[:,:i], F_drag_array[:,:i], v_drag_array[:,:i], rho_array[:i]
@@ -176,9 +179,27 @@ def trajectory_lander(initial_time, initial_velocity, initial_position, simulati
 quarter = 900 # 15 minutes = 900 s
 
 t1 = time()
-t, r, v, F_g, F_d, v_drag, rho = trajectory_lander(initial_time, vel, pos, 6*quarter)
+t, r, v, F_g, F_d, v_drag, rho = trajectory_lander(initial_time, vel, pos, 4*quarter)
 t2 = time()
 print('Simulation took', t2-t1, 's to complete.')
+
+# F_tot = F_g + F_d
+# fig, (ax7, ax8, ax9) = plt.subplots(3, 1, sharex=True)
+# ax7.set_title('Forces plot, gravity OFF')
+# ax7.plot(t[:-1], F_g[:,:-1].T)
+# ax7.legend(['F_g_x', 'F_g_y'])
+# ax7.set_ylabel('[N]')
+#
+# ax8.plot(t[:-1], F_d[:,:-1].T)
+# ax8.legend(['F_d_x', 'F_d_y'])
+# ax8.set_ylabel('[N]')
+#
+# ax9.plot(t[:-1], F_tot[:,:-1].T)
+# ax9.legend(['F_tot_x', 'F_tot_y'])
+# ax9.set_ylabel('[N]')
+# ax9.set_xlabel('Time [s]')
+
+
 
 # plt.plot(t, rho, label='rho')
 # plt.xlabel('Time [s]')
@@ -204,40 +225,40 @@ print('Simulation took', t2-t1, 's to complete.')
 # plt.legend()
 # plt.show()
 
-plt.figure()
-
-theta_planet = np.linspace(0, 2*np.pi, 101)
-x_planet = R * np.cos(theta_planet)
-y_planet = R * np.sin(theta_planet)
-
-plt.title('Simulation of landing')
-plt.plot(r[0,:], r[1,:], 'r', label='Position')
-plt.plot(0,0, 'ko', label='Center')
-plt.plot(x_planet, y_planet, 'b', lw=0.5, label='Surface')
-plt.axis('equal')
-plt.legend()
-
-fig, (ax1, ax2, ax3) = plt.subplots(3, 1, sharex=True)
-
-ax1.plot(t[:-1], np.linalg.norm(v[:,:-1], axis=0), label='|v|')
-ax1.legend()
-
-ax2.plot(t, np.linalg.norm(r, axis=0) - R, 'r', label='|r|')
-ax2.legend()
-
-ax3.plot(t[:-1], np.linalg.norm(F_g[:,:-1], axis=0), label='Gravity')
-ax3.plot(t[:-1], np.linalg.norm(F_d[:,:-1], axis=0), label='Drag')
-ax3.set_xlabel('Time [s]')
-ax3.legend()
-
-fig2, (ax4, ax5) = plt.subplots(2, 1, sharex=True)
-
-ax4.plot(t[:-1], F_g[:,:-1].T)
-ax4.legend(['F_g_x', 'F_g_y'])
-
-ax5.plot(t[:-1], F_d[:,:-1].T)
-ax5.legend(['F_d_x', 'F_d_y'])
-ax5.set_xlabel('Time [s]')
+# plt.figure()
+#
+# theta_planet = np.linspace(0, 2*np.pi, 101)
+# x_planet = R * np.cos(theta_planet)
+# y_planet = R * np.sin(theta_planet)
+#
+# plt.title('Simulation of landing')
+# plt.plot(r[0,:], r[1,:], 'r', label='Position')
+# plt.plot(0,0, 'ko', label='Center')
+# plt.plot(x_planet, y_planet, 'b', lw=0.5, label='Surface')
+# plt.axis('equal')
+# plt.legend()
+#
+# fig, (ax1, ax2, ax3) = plt.subplots(3, 1, sharex=True)
+#
+# ax1.plot(t[:-1], np.linalg.norm(v[:,:-1], axis=0), label='|v|')
+# ax1.legend()
+#
+# ax2.plot(t, np.linalg.norm(r, axis=0) - R, 'r', label='|r|')
+# ax2.legend()
+#
+# ax3.plot(t[:-1], np.linalg.norm(F_g[:,:-1], axis=0), label='Gravity')
+# ax3.plot(t[:-1], np.linalg.norm(F_d[:,:-1], axis=0), label='Drag')
+# ax3.set_xlabel('Time [s]')
+# ax3.legend()
+#
+# fig2, (ax4, ax5) = plt.subplots(2, 1, sharex=True)
+#
+# ax4.plot(t[:-1], F_g[:,:-1].T)
+# ax4.legend(['F_g_x', 'F_g_y'])
+#
+# ax5.plot(t[:-1], F_d[:,:-1].T)
+# ax5.legend(['F_d_x', 'F_d_y'])
+# ax5.set_xlabel('Time [s]')
 
 
 plt.show()
