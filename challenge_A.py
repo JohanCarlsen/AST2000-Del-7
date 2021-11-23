@@ -38,7 +38,7 @@ mission.verify_manual_orientation(pos, vel, angle)
 travel = mission.begin_interplanetary_travel()
 
 # Shortcut to make the landing sequence class start with a stable orbit
-shortcut.place_spacecraft_in_stable_orbit(2, 500e3, 0, 6)
+shortcut.place_spacecraft_in_stable_orbit(2, 250e3, 0, 6)
 
 # Initializing landing sequence class instance
 landing = mission.begin_landing_sequence()
@@ -87,7 +87,7 @@ def F_drag(position, velocity, area, C_d=1):
     r = np.sqrt(x**2 + y**2)
     r_theta = np.arctan(y / x)
 
-    vr = x * vx + y * vy / np.sqrt(x**2 + y**2)
+    vr = (x * vx + y * vy) / np.sqrt(x**2 + y**2)
     v_theta = r * ((x * vy - vx * y) / (x**2 + y**2))
 
     omega = 2 * np.pi / T
@@ -163,8 +163,8 @@ def trajectory_lander(initial_time, initial_velocity, initial_position, simulati
         velocity[:,i+1] = velocity[:,i] + a * dt
         position[:,i+1] = position[:,i] + velocity[:,i+1] * dt
 
-        if np.logical_and(abs(position[0,i]) < 2, abs(position[0,i]) > 0) == True:
-            print('90 degrees reached, position:', position[:,i])
+        # if np.logical_and(abs(position[0,i]) < 2, abs(position[0,i]) > 0) == True:
+        #     print('90 degrees reached, position:', position[:,i])
 
         if np.linalg.norm(position[:,i+1]) <= R:
             print('Ground hit after', t[i+1], 's. Good luck.')
@@ -179,7 +179,7 @@ def trajectory_lander(initial_time, initial_velocity, initial_position, simulati
 quarter = 900 # 15 minutes = 900 s
 
 t1 = time()
-t, r, v, F_g, F_d, v_drag, rho = trajectory_lander(initial_time, vel, pos, 4*quarter)
+t, r, v, F_g, F_d, v_drag, rho = trajectory_lander(initial_time, 0.9*vel, pos, 4*quarter)
 t2 = time()
 print('Simulation took', t2-t1, 's to complete.')
 
@@ -225,31 +225,31 @@ print('Simulation took', t2-t1, 's to complete.')
 # plt.legend()
 # plt.show()
 
-# plt.figure()
-#
-# theta_planet = np.linspace(0, 2*np.pi, 101)
-# x_planet = R * np.cos(theta_planet)
-# y_planet = R * np.sin(theta_planet)
-#
-# plt.title('Simulation of landing')
-# plt.plot(r[0,:], r[1,:], 'r', label='Position')
-# plt.plot(0,0, 'ko', label='Center')
-# plt.plot(x_planet, y_planet, 'b', lw=0.5, label='Surface')
-# plt.axis('equal')
-# plt.legend()
-#
-# fig, (ax1, ax2, ax3) = plt.subplots(3, 1, sharex=True)
-#
-# ax1.plot(t[:-1], np.linalg.norm(v[:,:-1], axis=0), label='|v|')
-# ax1.legend()
-#
-# ax2.plot(t, np.linalg.norm(r, axis=0) - R, 'r', label='|r|')
-# ax2.legend()
-#
-# ax3.plot(t[:-1], np.linalg.norm(F_g[:,:-1], axis=0), label='Gravity')
-# ax3.plot(t[:-1], np.linalg.norm(F_d[:,:-1], axis=0), label='Drag')
-# ax3.set_xlabel('Time [s]')
-# ax3.legend()
+plt.figure()
+
+theta_planet = np.linspace(0, 2*np.pi, 101)
+x_planet = R * np.cos(theta_planet)
+y_planet = R * np.sin(theta_planet)
+
+plt.title('Simulation of landing')
+plt.plot(r[0,:], r[1,:], 'r', label='Position')
+plt.plot(0,0, 'ko', label='Center')
+plt.plot(x_planet, y_planet, 'b', lw=0.5, label='Surface')
+plt.axis('equal')
+plt.legend()
+
+fig, (ax1, ax2, ax3) = plt.subplots(3, 1, sharex=True)
+
+ax1.plot(t[:-1], np.linalg.norm(v[:,:-1], axis=0), label='|v|')
+ax1.legend()
+
+ax2.plot(t, np.linalg.norm(r, axis=0) - R, 'r', label='|r|')
+ax2.legend()
+
+ax3.plot(t[:-1], np.linalg.norm(F_g[:,:-1], axis=0), label='Gravity')
+ax3.plot(t[:-1], np.linalg.norm(F_d[:,:-1], axis=0), label='Drag')
+ax3.set_xlabel('Time [s]')
+ax3.legend()
 #
 # fig2, (ax4, ax5) = plt.subplots(2, 1, sharex=True)
 #
