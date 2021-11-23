@@ -38,7 +38,7 @@ mission.verify_manual_orientation(pos, vel, angle)
 travel = mission.begin_interplanetary_travel()
 
 # Shortcut to make the landing sequence class start with a stable orbit
-shortcut.place_spacecraft_in_stable_orbit(2, 250e3, 0, 6)
+shortcut.place_spacecraft_in_stable_orbit(2, 400e3, 0, 6)
 
 # Initializing landing sequence class instance
 landing = mission.begin_landing_sequence()
@@ -68,7 +68,7 @@ initial_time, pos, vel = landing.orient()
 
 A_lander = mission.lander_area     # cross section area of the lander in m^2
 A_craft = mission.spacecraft_area # cross section area of the craft in m^2
-A_parachute = 0
+A_parachute = 8 # m^2
 A_lander_parachute = A_lander + A_parachute
 R = system.radii[6] * 1000 # m
 m_planet = system.masses[6] * const.m_sun # kg
@@ -77,6 +77,21 @@ g_1 = G * m_planet / R**2 # gravitational acceleration on our planet 3.174917721
 m_lander = mission.lander_mass # kg
 m_craft = mission.spacecraft_mass # kg
 T = system.rotational_periods[6] * 3600 * 24
+
+# print('')
+# print('Specs for craft and lander:')
+# print('')
+# print('\t\t Spacecraft \t Lander')
+# print(f'Area [m^2]: \t {A_craft} \t\t {A_lander}')
+# print(f'Mass [kg]: \t {m_craft} \t {m_lander}')
+# print('')
+'''
+Specs for craft and lander:
+
+                 Spacecraft      Lander
+Area [m^2]:      16.0            0.3
+Mass [kg]:       1100.0          90.0
+'''
 
 @njit
 def F_drag(position, velocity, area, C_d=1):
@@ -110,9 +125,8 @@ def F_drag(position, velocity, area, C_d=1):
     F_d_x = F_d_r * np.cos(r_theta) - F_d_theta * np.sin(r_theta)
     F_d_y = F_d_r * np.sin(r_theta) + F_d_theta * np.cos(r_theta)
     F_d_cartesian = np.array([F_d_x, F_d_y])
-    v_drag_cartesian = np.array([v_drag[0] * np.cos(r_theta) - v_drag[1] * np.sin(r_theta), v_drag[0] * np.sin(r_theta) + v_drag[1] * np.cos(r_theta)])
 
-    return F_d_cartesian, v_drag_cartesian, rho
+    return F_d_cartesian
 
 @njit
 def trajectory_lander(initial_time, initial_velocity, initial_position, simulation_time):
@@ -122,15 +136,12 @@ def trajectory_lander(initial_time, initial_velocity, initial_position, simulati
 
     position = np.zeros((2, time_steps))
     velocity = np.zeros((2, time_steps))
+    total_drag_preassure = np.zeros(time_steps)
+    drag_force = np.zeros((2, time_steps))
     t = np.linspace(initial_time, initial_time + simulation_time, time_steps)
 
     position[:,0] = initial_position[:2]
     velocity[:,0] = initial_velocity[:2]
-
-    F_gravity = np.zeros((2, time_steps))
-    F_drag_array = np.zeros((2, time_steps))
-    v_drag_array = np.zeros((2, time_steps))
-    rho_array = np.zeros(time_steps)
 
     for i in range(time_steps-1):
 
@@ -140,22 +151,43 @@ def trajectory_lander(initial_time, initial_velocity, initial_position, simulati
 
         g_acceleration = G * m_planet / r_norm**2
 
-        F_d, v_drag, rho = F_drag(position[:,i], velocity[:,i], A_craft)
-        F_G = -m_craft * g_acceleration * unit_r
-        rho_array[i] = rho
-        # if t[i] > 5:
-        #     F_G = -m_lander * g_acceleration * unit_r
-        #     if t[i] > 15:
-        #         F_d = F_drag(position[:,i], velocity[:,i], A_lander_parachute)
-        #     else:
-        #         F_d = F_drag(position[:,i], velocity[:,i], A_lander)
-        # else:
-        #     F_G = -m_craft * g_acceleration * unit_r
-        #     F_d = F_drag(position[:,i], velocity[:,i], A_craft)
+        # F_d = F_drag(position[:,i], velocity[:,i], A_craft)
+        # F_G = -m_craft * g_acceleration * unit_r
 
-        F_gravity[:,i] = F_G
-        F_drag_array[:,i] = F_d
-        v_drag_array[:,i] = v_drag
+        if t[i] > 600:
+            if t[i] < 600 + dt:
+                velocity[:,i] *= 0.25
+                print('')
+                print('Lander launched with dv=', velocity[:,i] / 4, 'm/s at t=', t[i], 's.')
+
+            F_G = -m_lander * g_acceleration * unit_r
+
+            if t[i] > 1800:
+                if t[i] < 1800 + dt:
+                    print('')
+                    print('Opened parachute at t=', t[i], 's.')
+
+                F_d = F_drag(position[:,i], velocity[:,i], A_lander_parachute)
+                drag_force[:,i+1] = F_d
+                total_drag_preassure[i+1] = np.linalg.norm(F_d) / A_lander
+
+                if np.linalg.norm(F_d / A_lander) >= 1e7:
+                    print('')
+                    print('FATAL ERROR!')
+                    print('Total drag preassure on the parachute is', np.linalg.norm(F_d / A_lander), 'Pa, but can not exceed 10 000 000 Pa.')
+                    return t[:i], position[:,:i], velocity[:,:i], total_drag_preassure[:i], drag_force[:,:i]
+            else:
+                F_d = F_drag(position[:,i], velocity[:,i], A_lander)
+                if np.linalg.norm(F_d) >= 25e4:
+                    print('')
+                    print('FATAL ERROR!')
+                    print('Drag force on lander is', np.linalg.norm(F_d), 'N, but can not exceed 250 000 N.')
+                    return t[:i], position[:,:i], velocity[:,:i], total_drag_preassure[:i], drag_force[:,:i]
+                total_drag_preassure[i+1] = np.linalg.norm(F_d) / A_lander
+        else:
+            F_G = -m_craft * g_acceleration * unit_r
+            F_d = F_drag(position[:,i], velocity[:,i], A_craft)
+
         F_tot = F_G + F_d
 
         a = F_tot / m_craft
@@ -163,71 +195,25 @@ def trajectory_lander(initial_time, initial_velocity, initial_position, simulati
         velocity[:,i+1] = velocity[:,i] + a * dt
         position[:,i+1] = position[:,i] + velocity[:,i+1] * dt
 
-        # if np.logical_and(abs(position[0,i]) < 2, abs(position[0,i]) > 0) == True:
-        #     print('90 degrees reached, position:', position[:,i])
-
         if np.linalg.norm(position[:,i+1]) <= R:
+            print('')
             print('Ground hit after', t[i+1], 's. Good luck.')
-            return t[:i], position[:,:i], velocity[:,:i], F_gravity[:,:i], F_drag_array[:,:i], v_drag_array[:,:i], rho_array[:i]
+            print('')
+            return t[:i], position[:,:i], velocity[:,:i], total_drag_preassure[:i], drag_force[:,:i]
 
-        if np.linalg.norm(position[:,i+1]) > 1e7:
-            print('Craft is headed to deep space after', t[i+1], 's. See you later. Maybe. Good luck.')
-            return t[:i], position[:,:i], velocity[:,:i], F_gravity[:,:i], F_drag_array[:,:i], v_drag_array[:,:i], rho_array[:i]
-
-    return t, position, velocity, F_gravity, F_drag_array, v_drag_array, rho_array
+    return t, position, velocity, total_drag_preassure, drag_force
 
 quarter = 900 # 15 minutes = 900 s
 
 t1 = time()
-t, r, v, F_g, F_d, v_drag, rho = trajectory_lander(initial_time, 0.9*vel, pos, 4*quarter)
+t, r, v, drag_preassure, F_drag = trajectory_lander(initial_time, 0.9*vel, pos, 12*quarter)
 t2 = time()
 print('Simulation took', t2-t1, 's to complete.')
-
-# F_tot = F_g + F_d
-# fig, (ax7, ax8, ax9) = plt.subplots(3, 1, sharex=True)
-# ax7.set_title('Forces plot, gravity OFF')
-# ax7.plot(t[:-1], F_g[:,:-1].T)
-# ax7.legend(['F_g_x', 'F_g_y'])
-# ax7.set_ylabel('[N]')
-#
-# ax8.plot(t[:-1], F_d[:,:-1].T)
-# ax8.legend(['F_d_x', 'F_d_y'])
-# ax8.set_ylabel('[N]')
-#
-# ax9.plot(t[:-1], F_tot[:,:-1].T)
-# ax9.legend(['F_tot_x', 'F_tot_y'])
-# ax9.set_ylabel('[N]')
-# ax9.set_xlabel('Time [s]')
-
-
-
-# plt.plot(t, rho, label='rho')
-# plt.xlabel('Time [s]')
-# plt.legend()
-
-# testF_d = [F_d[:,i]/np.linalg.norm(F_d[:,i]) for i in range(11)]
-# test_v_drag = [v_drag[:,i]/np.linalg.norm(v_drag[:,i]) for i in range(11)]
-#
-# print('F_d:', F_d[:,:10].T)
-# print('v:', v_drag[:,:10].T)
-# print('F_d/|F_d|:')
-# for i in range(len(testF_d)):
-#     print(testF_d[i])
-# print('v/|v|:')
-# for i in range(len(test_v_drag)):
-#     print(test_v_drag[i])
-
-# height = np.linspace(0,200e3)
-# density = get_rho(height)
-
-# plt.plot(height, density, label='Density')
-# plt.xlabel('Height [m]')
-# plt.legend()
-# plt.show()
+# print(f'Height above ground after t={t[-1]} s: {np.linalg.norm(r[:,-1]) - R} m.')
 
 plt.figure()
 
-theta_planet = np.linspace(0, 2*np.pi, 101)
+theta_planet = np.linspace(0, 2*np.pi, 1001)
 x_planet = R * np.cos(theta_planet)
 y_planet = R * np.sin(theta_planet)
 
@@ -238,27 +224,43 @@ plt.plot(x_planet, y_planet, 'b', lw=0.5, label='Surface')
 plt.axis('equal')
 plt.legend()
 
-fig, (ax1, ax2, ax3) = plt.subplots(3, 1, sharex=True)
+fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True)
 
-ax1.plot(t[:-1], np.linalg.norm(v[:,:-1], axis=0), label='|v|')
+ax1.set_title('Drag preassure on lander')
+ax1.plot(t, drag_preassure, label='P')
 ax1.legend()
+ax1.set_ylabel('Preassure [Pa]')
 
-ax2.plot(t, np.linalg.norm(r, axis=0) - R, 'r', label='|r|')
+ax2.set_title('Force on parachute')
+ax2.plot(t, np.linalg.norm(F_drag, axis=0), label='Drag')
 ax2.legend()
+ax2.set_ylabel('Force [N]')
+ax2.set_xlabel('Time [s]')
 
-ax3.plot(t[:-1], np.linalg.norm(F_g[:,:-1], axis=0), label='Gravity')
-ax3.plot(t[:-1], np.linalg.norm(F_d[:,:-1], axis=0), label='Drag')
-ax3.set_xlabel('Time [s]')
+fig, (ax1, ax2, ax3) = plt.subplots(3, 1, sharex=True, figsize=(8, 6))
+
+ax1.set_title('Height above surface')
+ax1.plot(t, np.linalg.norm(r, axis=0) - R, label='h')
+ax1.legend()
+ax1.set_ylabel('Height [m]')
+
+ax2.set_title('Velocity')
+ax2.plot(t, v.T)
+ax2.legend(['vx', 'vy'])
+ax2.set_ylabel('Velocity [m/s]')
+
+ax3.set_title('Absolute velocity')
+ax3.plot(t, np.linalg.norm(v, axis=0), label='|v|')
 ax3.legend()
-#
-# fig2, (ax4, ax5) = plt.subplots(2, 1, sharex=True)
-#
-# ax4.plot(t[:-1], F_g[:,:-1].T)
-# ax4.legend(['F_g_x', 'F_g_y'])
-#
-# ax5.plot(t[:-1], F_d[:,:-1].T)
-# ax5.legend(['F_d_x', 'F_d_y'])
-# ax5.set_xlabel('Time [s]')
-
+ax3.set_ylabel('Velocity [m/s]')
+ax3.set_xlabel('Time [s]')
 
 plt.show()
+
+'''
+Lander launched with dv= [-78.47986488 102.32099885] m/s at t= 600.0005555560699 s.
+
+Opened parachute at t= 1800.0016666682097 s.
+
+Ground hit after 10340.589574619975 s. Good luck.
+'''
