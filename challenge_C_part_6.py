@@ -29,7 +29,6 @@ R_star = system.star_radius * 1000          # m
 gamma = 1.4
 k = const.k_B
 mh = const.m_p
-# g = 9.81  # antatt er konstant (husk å bytte til g for planeten vi befinner oss på)
 T_star = 7985       # K
 
 # Masser til vanlige gasser i atmosfærer:
@@ -39,30 +38,31 @@ m_co2 = 12*mh + 2 * 16*mh
 m_ch4 = 12*mh + 4*mh
 m_co = 12*mh + 16*mh
 m_n2o = 2 * 14*mh + 16*mh
-# print('\n')
-# print(f'm_o2: {m_o2}')
-# print(f'm_h2o: {m_h2o}')
-# print(f'm_co2: {m_co2}')
-# print(f'm_ch4: {m_ch4}')
-# print(f'm_co: {m_co}')
-# print(f'm_n2o: {m_n2o}')
-# print('\n')
+print('\n')
+print(f'm_o2: {m_o2}')
+print(f'm_h2o: {m_h2o}')
+print(f'm_co2: {m_co2}')
+print(f'm_ch4: {m_ch4}')
+print(f'm_co: {m_co}')
+print(f'm_n2o: {m_n2o}')
+print('\n')
 
+# Array med masser vi ønsker i intorduesere i modellen vår
 mass_array = np.array([m_o2, m_h2o, m_co2, m_ch4, m_co, m_n2o])
+# Funksjon som skal minimere eller maksimere mu i atmosfære
 def optimize_mu(mass_array, option='minimize'):
     if option == 'minimize':
         opt = lambda x: np.min(x)
     if option == 'maximize':
         opt = lambda x: np.max(x)
-    combinations_mass = np.array([*itertools.combinations_with_replacement(mass_array, mass_array.size)])
-    # print(combinations_mass)
+    combinations_mass = np.array([*itertools.combinations_with_replacement(mass_array, mass_array.size)])   # Alle kombinasjoner av masser
     N, M = combinations_mass.shape
     mu_comb = np.zeros((N))
     for i in trange(len(mu_comb), desc='Calculating mu'):
         mu_comb[i] = np.sum(combinations_mass[i]) / (M*mh)
-    # print('')
+    print('')
     where_min = np.where(mu_comb == opt(mu_comb))
-    # print(f'Total combinations: {len(mu_comb)}')
+    print(f'Total combinations: {len(mu_comb)}')
     # print(where_min)
     # print(mu_comb[where_min])
     # print(combinations_mass[where_min])
@@ -70,10 +70,10 @@ def optimize_mu(mass_array, option='minimize'):
 mass_comb, min_mu = optimize_mu(mass_array, 'minimize')
 
 n = 0
-# print(f'Amount of combinations to choose: {len(min_mu)}\n')
-# print(mass_comb[n])         # Kombinasjon av masse
+print(f'Amount of combinations to choose: {len(min_mu)}\n')
+print(mass_comb[n])         # Kombinasjon av masse
 mu = min_mu[n]            # Komposisjon av atmosfære
-r_dist = 3.64 * const.AU            # Middel-avstand
+r_dist = 3.64 * const.AU            # Middel-avstand mellom planet og stjerne
 g = planet_mass * const.G / (planet_radius)**2  # antatt er konstant (husk å bytte til g for planeten vi befinner oss på)
 rho0 = system.atmospheric_densities[6]
 T0 = surface_T(R_star, T_star, r_dist)
@@ -106,6 +106,7 @@ P_shift_adiabatic_isoterm = P_adiabatic(r_shift_adiabatic_isoterm)          # tr
 K1 = k*T0 / (2*mu*g*mh)
 C0 = rho_shift_adiabatic_isoterm*np.exp(1/K1 * r_shift_adiabatic_isoterm)           # Løser for C0 i isoterm likning, gadd ikke analytisk
 
+# Regner ut rho sammenhengende i hele atmosfæren
 def get_rho(r):
     if isinstance(r, (int,float)):
         if r <= r_shift_adiabatic_isoterm:
@@ -123,6 +124,7 @@ def get_rho(r):
         rho = np.concatenate((adiabatic_rho, isoterm_rho))
         return rho
 
+# Regner ut T sammenhengende i hele atmosfæren
 def get_T(r):
     if isinstance(r, (int,float)):
         if r <= r_shift_adiabatic_isoterm:
@@ -140,6 +142,7 @@ def get_T(r):
         temp = np.concatenate((adiabatic_temp, isoterm_temp))
         return temp
 
+# Regner ut P sammenhengende i hele atmosfæren
 def get_P(r):
     if isinstance(r, (int,float)):
         if r <= r_shift_adiabatic_isoterm:
@@ -192,21 +195,21 @@ if __name__ == '__main__':
     ax1.legend(); ax2.legend(); ax3.legend()
     plt.show()
 
-    # Plot rho
+    # Plotter rho
     plt.plot(r, get_rho(r), color='r', label=r'$\rho$ [kg/m^3]')
     plt.xlabel('r [m]', fontsize=12, weight='bold')
     plt.ylabel(r'$\rho\;[kg/m^3]$', fontsize=12, weight='bold')
     plt.legend()
     plt.show()
 
-    # Plot temp
+    # Plotter temp
     plt.plot(r, get_T(r), color='tab:orange', label='T [K]')
     plt.xlabel('r [m]', fontsize=12, weight='bold')
     plt.ylabel('T [K]', fontsize=12, weight='bold')
     plt.legend()
     plt.show()
 
-    # Plot P
+    # Plotter P
     plt.plot(r, get_P(r), color='tab:blue', label='P [Pa]')
     plt.xlabel('r [m]', fontsize=12, weight='bold')
     plt.ylabel('P [Pa]', fontsize=12, weight='bold')
