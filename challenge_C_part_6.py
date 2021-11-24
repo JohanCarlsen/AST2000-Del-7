@@ -29,7 +29,7 @@ R_star = system.star_radius * 1000          # m
 gamma = 1.4
 k = const.k_B
 mh = const.m_p
-g = 9.81  # antatt er konstant (husk å bytte til g for planeten vi befinner oss på)
+# g = 9.81  # antatt er konstant (husk å bytte til g for planeten vi befinner oss på)
 T_star = 7985       # K
 
 # Masser til vanlige gasser i atmosfærer:
