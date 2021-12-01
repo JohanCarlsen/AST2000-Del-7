@@ -74,7 +74,7 @@ G = const.G # gravitational constant
 g_1 = G * m_planet / R**2 # gravitational acceleration on our planet 3.174917721996738 m/s^2
 m_lander = mission.lander_mass # kg
 m_craft = mission.spacecraft_mass # kg
-T = system.rotational_periods[6] * 3600 * 24
+T = system.rotational_periods[6] * 3600 * 24 # s
 
 # print('')
 # print('Specs for craft and lander:')
@@ -92,7 +92,7 @@ Mass [kg]:       1100.0          90.0
 '''
 
 def terminal_velocity(m, position, area, C_d=1, v_safe=None):
-    ''' Function to calculate terminal velocity '''
+    ''' Function to calculate terminal velocity or parachute area'''
 
     r = np.linalg.norm(position)
     g = G * m_planet / r**2
@@ -123,23 +123,30 @@ Estimated parachute area: 60.585680617431905 m^2
 
 @njit
 def F_drag(position, velocity, area, C_d=1):
-
+    '''
+    This function takes cartesian coordinates x and y and
+    transforms them into polar coordinates. The calculations
+    are done, and then the coords. are being transformed back
+    into cartesian coordinates.
+    '''
     x, y = position
     vx, vy = velocity
 
     r = np.sqrt(x**2 + y**2)
     r_theta = np.arctan(y / x)
 
+    # here im using the values for r and r_theta and derive these
+    # to get v_r and v_theta
     vr = (x * vx + y * vy) / np.sqrt(x**2 + y**2)
     v_theta = r * ((x * vy - vx * y) / (x**2 + y**2))
 
-    omega = 2 * np.pi / T
+    omega = 2 * np.pi / T   # angular velocity of the planet
 
     v = np.array([vr, v_theta])
     w = np.array([0, omega * r])
-    v_drag = v - w
+    v_drag = v - w      # crafts velocity relative to the atmosphere
 
-    r_test = r - R
+    r_test = r - R      # since the formula for density has 0 as the planet surface, we test for the height above the surface
 
     if r_test <= r_shift_adiabatic_isoterm:
         rho = A**(-1/gamma)*K0 * (((1 - gamma) / gamma) * (K0*A**(-1/gamma)*g_1*r_test + C))**(1 / (gamma - 1))
@@ -150,6 +157,7 @@ def F_drag(position, velocity, area, C_d=1):
 
     F_d_r = F_d[0]
     F_d_theta = F_d[1]
+    # transformation back to cartesian
     F_d_x = F_d_r * np.cos(r_theta) - F_d_theta * np.sin(r_theta)
     F_d_y = F_d_r * np.sin(r_theta) + F_d_theta * np.cos(r_theta)
     F_d_cartesian = np.array([F_d_x, F_d_y])
@@ -171,6 +179,11 @@ def trajectory_lander(initial_time, initial_velocity, initial_position, simulati
     position[:,0] = initial_position[:2]
     velocity[:,0] = initial_velocity[:2]
 
+    print('----------------------------------------')
+    print('LANDING SIMULATION STARTED')
+    print('')
+    print('Boosted with dv=', 0.8*position[:,0], 'at time t=', initial_time, 's.')
+
     for i in range(time_steps-1):
 
         r_vec = position[:,i]
@@ -180,7 +193,7 @@ def trajectory_lander(initial_time, initial_velocity, initial_position, simulati
         g_acceleration = G * m_planet / r_norm**2
 
         if t[i] > 450:
-            if t[i] < 450 + dt:
+            if t[i] < 450 + dt:     # launches lander with dv
                 velocity[:,i] *= 0.25
                 print('')
                 print('Lander launched with dv= 0.25*vel=', velocity[:,i] / 4, 'm/s at t=', int(t[i]), 's.')
@@ -188,7 +201,7 @@ def trajectory_lander(initial_time, initial_velocity, initial_position, simulati
             F_G = -m_lander * g_acceleration * unit_r
 
             if t[i] > 2500:
-                if t[i] < 2500 + dt:
+                if t[i] < 2500 + dt:    # opens parachute
                     print('')
                     print('Opened parachute at t=', int(t[i]), 's at height', int(np.linalg.norm(position[:,i]) - R), 'm.')
 
@@ -217,6 +230,7 @@ def trajectory_lander(initial_time, initial_velocity, initial_position, simulati
 
         a = F_tot / m_craft
 
+        # Euler-Cromer
         velocity[:,i+1] = velocity[:,i] + a * dt
         position[:,i+1] = position[:,i] + velocity[:,i+1] * dt
 
@@ -230,87 +244,96 @@ def trajectory_lander(initial_time, initial_velocity, initial_position, simulati
 
 quarter = 900 # 15 minutes = 900 s
 
-# t1 = time()
-# t, r, v, drag_preassure, F_drag = trajectory_lander(initial_time, 0.8*vel, pos, 25*quarter)
-# t2 = time()
-# print('Simulation took', t2-t1, 's to complete.')
-# # print(f'Height above ground after t={t[-1]} s: {np.linalg.norm(r[:,-1]) - R} m.')
-#
-# r_radial = np.sqrt(r[0,:]**2 + r[1,:]**2)
-# r_theta = np.arctan(r[1,:] / r[0,:])
-#
-# vr = (r[0,:] * v[0,:] + r[1,:] * v[1,:]) / np.sqrt(r[0,:]**2 + r[1,:]**2)
-# v_theta = r_radial * ((r[0,:] * v[1,:] - v[0,:] * r[1,:]) / (r[0,:]**2 + r[1,:]**2))
-#
-# print('')
-# if abs(vr[-1]) < 3:
-#     print(f'Soft landing performed, with final radial velocity v_r={vr[-1]} m/s.')
-#
-# else:
-#     print(f'Hard landing performed, with final radial velocity v_r={vr[-1]} m/s. Hope you braced.')
-#
-# plt.figure()
-#
-# plt.title('Radial velocity')
-# plt.plot(t, vr, label='v_r')
-# plt.legend()
-# plt.xlabel('Time [s]')
-# plt.ylabel('Velocity [m/s]')
-#
-# plt.figure()
-#
-# theta_planet = np.linspace(0, 2*np.pi, 1001)
-# x_planet = R * np.cos(theta_planet)
-# y_planet = R * np.sin(theta_planet)
-#
-# plt.title('Simulation of landing')
-# plt.plot(r[0,:], r[1,:], 'r', label='Position')
-# plt.plot(0,0, 'ko', label='Center')
-# plt.plot(x_planet, y_planet, 'b', lw=0.5, label='Surface')
-# plt.axis('equal')
-# plt.legend()
-#
-# fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True)
-#
-# ax1.set_title('Drag preassure on lander')
-# ax1.plot(t, drag_preassure, label='P')
-# ax1.legend()
-# ax1.set_ylabel('Preassure [Pa]')
-#
-# ax2.set_title('Force on parachute')
-# ax2.plot(t, np.linalg.norm(F_drag, axis=0), label='Drag')
-# ax2.legend()
-# ax2.set_ylabel('Force [N]')
-# ax2.set_xlabel('Time [s]')
-#
-# fig, (ax1, ax2, ax3) = plt.subplots(3, 1, sharex=True, figsize=(8, 6))
-#
-# ax1.set_title('Height above surface')
-# ax1.plot(t, np.linalg.norm(r, axis=0) - R, label='h')
-# ax1.legend()
-# ax1.set_ylabel('Height [m]')
-#
-# ax2.set_title('Velocity')
-# ax2.plot(t, v.T)
-# ax2.legend(['vx', 'vy'])
-# ax2.set_ylabel('Velocity [m/s]')
-#
-# ax3.set_title('Absolute velocity')
-# ax3.plot(t, np.linalg.norm(v, axis=0), label='|v|')
-# ax3.legend()
-# ax3.set_ylabel('Velocity [m/s]')
-# ax3.set_xlabel('Time [s]')
-#
-# plt.show()
+t1 = time()
+t, r, v, drag_preassure, F_drag = trajectory_lander(initial_time, 0.8*vel, pos, 25*quarter)
+t2 = time()
+print('Simulation took', t2-t1, 's to complete.')
+# print(f'Height above ground after t={t[-1]} s: {np.linalg.norm(r[:,-1]) - R} m.')
+
+r_radial = np.sqrt(r[0,:]**2 + r[1,:]**2)
+r_theta = np.arctan(r[1,:] / r[0,:])
+
+vr = (r[0,:] * v[0,:] + r[1,:] * v[1,:]) / np.sqrt(r[0,:]**2 + r[1,:]**2)
+v_theta = r_radial * ((r[0,:] * v[1,:] - v[0,:] * r[1,:]) / (r[0,:]**2 + r[1,:]**2))
+
+print('')
+if abs(vr[-1]) < 3:
+    print(f'Soft landing performed, with final radial velocity v_r={vr[-1]} m/s.')
+
+else:
+    print(f'Hard landing performed, with final radial velocity v_r={vr[-1]} m/s. Hope you braced.')
+
+plt.figure()
+
+plt.title('Radial velocity')
+plt.plot(t, vr, label='v_r', color='k')
+plt.legend()
+plt.xlabel('Time [s]')
+plt.ylabel('Velocity [m/s]')
+# plt.savefig('radial_velocity.png')
+
+plt.figure()
+
+theta_planet = np.linspace(0, 2*np.pi, 1001)
+x_planet = R * np.cos(theta_planet)
+y_planet = R * np.sin(theta_planet)
+
+plt.title('Simulation of landing')
+plt.plot(r[0,:], r[1,:], 'r', label='Position')
+plt.plot(0,0, 'ko', label='Center')
+plt.plot(x_planet, y_planet, 'b', lw=0.5, label='Surface')
+plt.axis('equal')
+plt.legend()
+# plt.savefig('simulation_of_landing.png')
+
+fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True)
+
+ax1.set_title('Drag preassure on lander')
+ax1.plot(t, drag_preassure, label='P')
+ax1.legend()
+ax1.set_ylabel('Preassure [Pa]')
+
+ax2.set_title('Force on parachute')
+ax2.plot(t, np.linalg.norm(F_drag, axis=0), label='Drag')
+ax2.legend()
+ax2.set_ylabel('Force [N]')
+ax2.set_xlabel('Time [s]')
+# plt.savefig('preassure_and_forces.png')
+
+fig, (ax1, ax2, ax3) = plt.subplots(3, 1, sharex=True, figsize=(8, 6))
+
+ax1.set_title('Height above surface')
+ax1.plot(t, np.linalg.norm(r, axis=0) - R, label='h', color='r')
+ax1.legend()
+ax1.set_ylabel('Height [m]')
+
+ax2.set_title('Velocity')
+ax2.plot(t, v.T)
+ax2.legend(['vx', 'vy'])
+ax2.set_ylabel('Velocity [m/s]')
+
+ax3.set_title('Absolute velocity')
+ax3.plot(t, np.linalg.norm(v, axis=0), label='|v|', color='k')
+ax3.legend()
+ax3.set_ylabel('Velocity [m/s]')
+ax3.set_xlabel('Time [s]')
+# plt.savefig('three_plots.png')
+
+plt.show()
 
 '''
+----------------------------------------
+LANDING SIMULATION STARTED
+
+Boosted with dv= [1809394.87540424       0.        ] at time t= 0 s.
+
 Lander launched with dv= 0.25*vel= [-60.58733923  99.20488693] m/s at t= 450 s.
 
 Opened parachute at t= 2500 s at height 40147 m.
 
 Ground hit after 14512.786450127312 s. Good luck.
 
-Simulation took 32.13535451889038 s to complete.
+Simulation took 20.354193925857544 s to complete.
 
 Soft landing performed, with final radial velocity v_r=-2.784942675738035 m/s.
 '''
@@ -353,7 +376,7 @@ def landing_site_coordinates(coords, time_elapsed):
     return new_coords
 
 landing.look_in_direction_of_motion()
-landing.start_video()
+# landing.start_video()
 landing.adjust_parachute_area(70)
 landing.boost(-0.8*vel)
 landing.fall(450)
@@ -364,7 +387,7 @@ landing.launch_lander(0.25*vel)
 landing.fall_until_time(1200)
 landing.deploy_parachute()
 landing.fall_until_time(1400)
-landing.finish_video()
+# landing.finish_video()
 landing.fall_until_time(1561)
 
 landing_site = landing_site_coordinates(landing_spot_initial_coords, 2377)
@@ -372,3 +395,32 @@ landing_site = landing_site_coordinates(landing_spot_initial_coords, 2377)
 print('Landing site coordinates as we calculated:')
 print(f'\t theta = {landing_site[1] * 180 / np.pi} deg')
 print(f'\t phi = {landing_site[2] * 180 / np.pi:.5f} deg')
+
+'''
+Performed automatic orientation:
+Time: 0 s
+Position: (2.26174e+06, 0, 0) m
+Velocity: (0, 2205.84, 0) m/s
+Camera pointing towards direction of motion.
+Parachute area: 70 m^2
+Spacecraft boosted with delta-v (-0, -1764.67, -0) m/s.
+Spacecraft fell for 450 s.
+Performed automatic orientation:
+Time: 450 s
+Position: (2.03688e+06, 191635, 0) m
+Velocity: (-1033.03, 392.673, 0) m/s
+Landing module launched at time 450 s with delta-v (-258.257, 98.1683, 0) m/s.
+Lander fell until time 1200 s.
+Parachute with area 70 m^2 deployed at time 1200 s.
+Lander fell until time 1400 s.
+Lander reached the surface at time 1560.72 s.
+Successfully landed on planet 6 at time 1560.72 s with velocity 2.79098 m/s. Well done!
+*** Achievement unlocked: Touchdown! ***
+Landing site coordinates recorded:
+  theta = 90 deg
+  phi = 7.09578 deg
+Lander rested on surface until time 1561 s.
+Landing site coordinates as we calculated:
+         theta = 90.0 deg
+         phi = 67.78303 deg
+'''
